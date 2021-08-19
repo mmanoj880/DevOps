@@ -12,7 +12,7 @@ jobs:
       uses: svenstaro/upload-release-action@v2
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
-        file: '*'
+        file: 'CSD-DYNAMODB-TABLE.yml'
         asset_name: mything
-        tag: v2.0
+        tag: v7.0
         body: "This is my release text"
