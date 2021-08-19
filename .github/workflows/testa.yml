@@ -13,4 +13,3 @@ jobs:
         file: release/*.yml
         tag: ${{ github.ref }}
         overwrite: true
-        file_glob: true
