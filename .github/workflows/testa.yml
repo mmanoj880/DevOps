@@ -14,5 +14,5 @@ jobs:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
         file: 'CSD-DYNAMODB-TABLE.yml'
         asset_name: mything
-        tag: v7.0
+        tag: v500.0
         body: "This is my release text"
