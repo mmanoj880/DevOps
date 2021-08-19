@@ -4,7 +4,7 @@ on:
     tags:
       - 'v*' 
 
-name: Create Release Build
+name: Create and Upload Release Build
 
 jobs:
   build:
