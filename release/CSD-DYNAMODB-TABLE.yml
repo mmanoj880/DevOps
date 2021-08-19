@@ -1,0 +1,1872 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Parameters: 
+  Env:
+    Description: Environment Suffix
+    Type: String
+    Default: Dev  
+  ProjectName:
+    Description: Enter the Project name
+    Type: String
+  PIT:
+    Description: Enter true or false for PIT to enable or disable
+    Type: String
+    Default: 'false'
+  PlanningViewOutboundTrigger:
+    Description: Enter true or false
+    Type: String    
+Conditions:
+  CreatePlanningViewOutboundTrigger: !Equals 
+    - !Ref PlanningViewOutboundTrigger
+    - true   
+  CreateDriverTimeEntrySummary: 
+    !Not [!Equals [!Ref Env, prod]] 
+  CreateDriverSummary: 
+    !Not [!Equals [!Ref Env, prod]]   
+  CreatePlanningViewSummary: 
+    !Not [!Equals [!Ref Env, prod]]      
+Resources: 
+  CsdUserRoles:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      Tags:
+      - Key: Name
+        Value: 
+          Fn::Join:
+          - "-"
+          - - CSD-USERROLESTABLE
+            - Ref: Env
+      - Key: Owner
+        Value: ocs
+      - Key: Application
+        Value: opsTool  
+      - Key: Environment
+        Value: 
+          Ref: Env  
+      - Key: Project 
+        Value:
+          Ref: ProjectName  
+      PointInTimeRecoverySpecification:       
+        PointInTimeRecoveryEnabled: 
+          Ref: PIT
+      BillingMode: PAY_PER_REQUEST 
+      AttributeDefinitions:
+      - AttributeName: user_id
+        AttributeType: S
+      - AttributeName: role_id
+        AttributeType: S        
+      KeySchema:
+      - AttributeName: user_id
+        KeyType: HASH
+      - AttributeName: role_id
+        KeyType: RANGE  
+      TableName:
+        Fn::Join:
+        - "-"
+        - - csd-user-roles
+          - Ref: Env
+  CsdDriver:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      Tags:
+      - Key: Name
+        Value: 
+          Fn::Join:
+          - "-"
+          - - CSD-DRIVERTABLE
+            - Ref: Env
+      - Key: Owner
+        Value: ocs
+      - Key: Application
+        Value: opsTool  
+      - Key: Environment
+        Value: 
+          Ref: Env  
+      - Key: Project 
+        Value:
+          Ref: ProjectName
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: 
+          Ref: PIT                
+      BillingMode: PAY_PER_REQUEST      
+      AttributeDefinitions:
+      - AttributeName: driver_id
+        AttributeType: S
+      KeySchema:
+      - AttributeName: driver_id
+        KeyType: HASH
+      TableName:
+        Fn::Join:
+        - "-"
+        - - csd-driver
+          - Ref: Env
+  CsdEmployee:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      Tags:
+      - Key: Name
+        Value: 
+          Fn::Join:
+          - "-"
+          - - CSD-EMPLOYEETABLE
+            - Ref: Env
+      - Key: Owner
+        Value: ocs
+      - Key: Application
+        Value: opsTool 
+      - Key: Environment
+        Value: 
+          Ref: Env  
+      - Key: Project 
+        Value:
+          Ref: ProjectName  
+      PointInTimeRecoverySpecification:    
+        PointInTimeRecoveryEnabled: 
+          Ref: PIT        
+      BillingMode: PAY_PER_REQUEST          
+      AttributeDefinitions:
+      - AttributeName: user_id
+        AttributeType: S
+      - AttributeName: email_id
+        AttributeType: S 
+      KeySchema:
+      - AttributeName: user_id
+        KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: email_id-index
+          KeySchema:
+            - AttributeName: email_id
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL     
+      TableName:
+        Fn::Join:
+        - "-"
+        - - csd-employee
+          - Ref: Env
+  CsdLob:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      Tags:
+      - Key: Name
+        Value: 
+          Fn::Join:
+          - "-"
+          - - CSD-LOBTABLE
+            - Ref: Env
+      - Key: Owner
+        Value: ocs
+      - Key: Application
+        Value: opsTool   
+      - Key: Environment
+        Value: 
+          Ref: Env  
+      - Key: Project 
+        Value:
+          Ref: ProjectName  
+      PointInTimeRecoverySpecification:  
+        PointInTimeRecoveryEnabled:
+          Ref: PIT                
+      BillingMode: PAY_PER_REQUEST           
+      AttributeDefinitions:
+      - AttributeName: lob_id
+        AttributeType: S
+      KeySchema:
+      - AttributeName: lob_id
+        KeyType: HASH
+      TableName:
+        Fn::Join:
+        - "-"
+        - - csd-lob
+          - Ref: Env
+  CsdRoute:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      Tags:
+      - Key: Name
+        Value: 
+          Fn::Join:
+          - "-"
+          - - CSD-ROUTETABLE
+            - Ref: Env
+      - Key: Owner
+        Value: ocs
+      - Key: Application
+        Value: opsTool   
+      - Key: Environment
+        Value: 
+          Ref: Env  
+      - Key: Project 
+        Value:
+          Ref: ProjectName   
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: 
+          Ref: PIT                  
+      BillingMode: PAY_PER_REQUEST          
+      AttributeDefinitions:
+      - AttributeName: route_id
+        AttributeType: S
+      - AttributeName: site_id
+        AttributeType: S        
+      KeySchema:
+      - AttributeName: route_id
+        KeyType: HASH
+      - AttributeName: site_id
+        KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: site_id-index
+          KeySchema:
+            - AttributeName: site_id
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL        
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES   
+      TableName:
+        Fn::Join:
+        - "-"
+        - - csd-route
+          - Ref: Env
+  DDBRouteTableTrigger:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 100  
+      Enabled: True
+      EventSourceArn: !GetAtt CsdRoute.StreamArn
+      FunctionName: 
+        Fn::Join:
+        - ''
+        - - arn:aws:lambda
+          - ':'
+          - Ref: AWS::Region
+          - ':'
+          - Ref: AWS::AccountId
+          - ':'
+          - function:csd-route-master-trigger-lambda-cdk
+          - '-'
+          - Ref: Env
+      StartingPosition: LATEST
+  DDBRouteTableTrigger1:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 100  
+      Enabled: True
+      EventSourceArn: !GetAtt CsdRoute.StreamArn
+      FunctionName: 
+        Fn::Join:
+        - ''
+        - - arn:aws:lambda
+          - ':'
+          - Ref: AWS::Region
+          - ':'
+          - Ref: AWS::AccountId
+          - ':'
+          - function:csd-route-trigger-lambda-cdk
+          - '-'
+          - Ref: Env
+      StartingPosition: LATEST      
+  CsdSite:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      Tags:
+      - Key: Name
+        Value: 
+          Fn::Join:
+          - "-"
+          - - CSD-SITETABLE
+            - Ref: Env
+      - Key: Owner
+        Value: ocs
+      - Key: Application
+        Value: opsTool     
+      - Key: Environment
+        Value: 
+          Ref: Env  
+      - Key: Project 
+        Value:
+          Ref: ProjectName  
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: 
+          Ref: PIT                  
+      BillingMode: PAY_PER_REQUEST            
+      AttributeDefinitions:
+      - AttributeName: site_id
+        AttributeType: S
+      - AttributeName: tier
+        AttributeType: S 
+      - AttributeName: business_unit
+        AttributeType: S 
+      - AttributeName: market_area
+        AttributeType: S 
+      KeySchema:
+      - AttributeName: site_id
+        KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: tier-index
+          KeySchema:
+            - AttributeName: tier
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL  
+        - IndexName: business_unit-index
+          KeySchema:
+            - AttributeName: business_unit
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+        - IndexName: market_area-index
+          KeySchema:
+            - AttributeName: market_area
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+      TableName:
+        Fn::Join:
+        - "-"
+        - - csd-site
+          - Ref: Env
+  DDBSiteTableTrigger:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 100  
+      Enabled: True
+      EventSourceArn: !GetAtt CsdSite.StreamArn
+      FunctionName: 
+        Fn::Join:
+        - ''
+        - - arn:aws:lambda
+          - ':'
+          - Ref: AWS::Region
+          - ':'
+          - Ref: AWS::AccountId
+          - ':'
+          - function:csd-site-publisher-lambda-cdk
+          - '-'
+          - Ref: Env
+      StartingPosition: LATEST
+  CsdVehicle:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      Tags:
+      - Key: Name
+        Value: 
+          Fn::Join:
+          - "-"
+          - - CSD-VEHICLETABLE
+            - Ref: Env
+      - Key: Owner
+        Value: ocs
+      - Key: Application
+        Value: opsTool    
+      - Key: Environment
+        Value: 
+          Ref: Env  
+      - Key: Project 
+        Value:
+          Ref: ProjectName   
+      PointInTimeRecoverySpecification:    
+        PointInTimeRecoveryEnabled: 
+          Ref: PIT                 
+      BillingMode: PAY_PER_REQUEST             
+      AttributeDefinitions:
+      - AttributeName: vehicle_id
+        AttributeType: S
+      - AttributeName: vehicle_type
+        AttributeType: S 
+      KeySchema:
+      - AttributeName: vehicle_id
+        KeyType: HASH  
+      GlobalSecondaryIndexes:
+        - IndexName: vehicle_type-index
+          KeySchema:
+            - AttributeName: vehicle_type
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL 
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES 
+      TableName:
+        Fn::Join:
+        - "-"
+        - - csd-vehicle
+          - Ref: Env
+  DDBVehicleTableTrigger:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 100  
+      Enabled: True
+      EventSourceArn: !GetAtt CsdVehicle.StreamArn
+      FunctionName: 
+        Fn::Join:
+        - ''
+        - - arn:aws:lambda
+          - ':'
+          - Ref: AWS::Region
+          - ':'
+          - Ref: AWS::AccountId
+          - ':'
+          - function:csd-vehicle-trigger-lambda-cdk
+          - '-'
+          - Ref: Env
+      StartingPosition: LATEST       
+  CsdDriverTimeEntry:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      Tags:
+      - Key: Name
+        Value: 
+          Fn::Join:
+          - "-"
+          - - CSD-DRIVERTIMEENTRYTABLE
+            - Ref: Env
+      - Key: Owner
+        Value: ocs
+      - Key: Application
+        Value: opsTool  
+      - Key: Environment
+        Value: 
+          Ref: Env  
+      - Key: Project 
+        Value:
+          Ref: ProjectName    
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: 
+          Ref: PIT                  
+      BillingMode: PAY_PER_REQUEST   
+      AttributeDefinitions:
+      - AttributeName: driver_id
+        AttributeType: S
+      - AttributeName: time_entry_date
+        AttributeType: S        
+      KeySchema:
+      - AttributeName: driver_id
+        KeyType: HASH
+      - AttributeName: time_entry_date
+        KeyType: RANGE  
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+      TableName:
+        Fn::Join:
+        - "-"
+        - - csd-driver-time-entry
+          - Ref: Env
+  DDBDriverTimeEntryTableTrigger:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 100  
+      Enabled: True
+      EventSourceArn: !GetAtt CsdDriverTimeEntry.StreamArn
+      FunctionName: 
+        Fn::Join:
+        - ''
+        - - arn:aws:lambda
+          - ':'
+          - Ref: AWS::Region
+          - ':'
+          - Ref: AWS::AccountId
+          - ':'
+          - function:csd-driver-time-entry-trigger-lambda-cdk
+          - '-'
+          - Ref: Env
+      StartingPosition: LATEST     
+  DDBDriverTimeEntryTableTrigger2:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 100  
+      Enabled: True
+      EventSourceArn: !GetAtt CsdDriverTimeEntry.StreamArn
+      FunctionName: 
+        Fn::Join:
+        - ''
+        - - arn:aws:lambda
+          - ':'
+          - Ref: AWS::Region
+          - ':'
+          - Ref: AWS::AccountId
+          - ':'
+          - function:csd-actual-hours-driver-time-entry-trigger-lambda-cdk
+          - '-'
+          - Ref: Env
+      StartingPosition: LATEST      
+  CsdUserSearch:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      Tags:
+      - Key: Name
+        Value: 
+          Fn::Join:
+          - "-"
+          - - CSD-USERSEARCH
+            - Ref: Env
+      - Key: Owner
+        Value: ocs
+      - Key: Application
+        Value: opsTool  
+      - Key: Environment
+        Value: 
+          Ref: Env  
+      - Key: Project 
+        Value:
+          Ref: ProjectName  
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: 
+          Ref: PIT                 
+      BillingMode: PAY_PER_REQUEST     
+      AttributeDefinitions:
+      - AttributeName: pkey
+        AttributeType: S
+      - AttributeName: uuid
+        AttributeType: S        
+      KeySchema:
+      - AttributeName: pkey
+        KeyType: HASH
+      - AttributeName: uuid
+        KeyType: RANGE  
+      TableName:
+        Fn::Join:
+        - "-"
+        - - csd-user-search
+          - Ref: Env       
+  CsdPlanningView:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      Tags:
+      - Key: Name
+        Value: 
+          Fn::Join:
+          - "-"
+          - - CSD-PLANNINGVIEW
+            - Ref: Env
+      - Key: Owner
+        Value: ocs
+      - Key: Application
+        Value: opsTool 
+      - Key: Environment
+        Value: 
+          Ref: Env  
+      - Key: Project 
+        Value:
+          Ref: ProjectName  
+      PointInTimeRecoverySpecification: 
+        PointInTimeRecoveryEnabled: 
+          Ref: PIT                
+      BillingMode: PAY_PER_REQUEST              
+      AttributeDefinitions:
+      - AttributeName: pkey
+        AttributeType: S
+      - AttributeName: uuid
+        AttributeType: S        
+      - AttributeName: plan_date
+        AttributeType: S 
+      KeySchema:
+      - AttributeName: pkey
+        KeyType: HASH
+      - AttributeName: uuid
+        KeyType: RANGE  
+      GlobalSecondaryIndexes:
+        - IndexName: plan_date-index
+          KeySchema:
+            - AttributeName: plan_date
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL      
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES                       
+      TableName:
+        Fn::Join:
+        - "-"
+        - - csd-planning-view
+          - Ref: Env
+  DDBPlanningViewTableTrigger:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 100  
+      Enabled: True
+      EventSourceArn: !GetAtt CsdPlanningView.StreamArn
+      FunctionName: 
+        Fn::Join:
+        - ''
+        - - arn:aws:lambda
+          - ':'
+          - Ref: AWS::Region
+          - ':'
+          - Ref: AWS::AccountId
+          - ':'
+          - function:csd-planning-view-publisher-lambda-cdk
+          - '-'
+          - Ref: Env
+      StartingPosition: LATEST
+  DDBPlanningViewOutboundTrigger:
+    Type: AWS::Lambda::EventSourceMapping
+    Condition: CreatePlanningViewOutboundTrigger
+    Properties:
+      BatchSize: 100  
+      Enabled: True
+      EventSourceArn: !GetAtt CsdPlanningView.StreamArn
+      FunctionName: 
+        Fn::Join:
+        - ''
+        - - arn:aws:lambda
+          - ':'
+          - Ref: AWS::Region
+          - ':'
+          - Ref: AWS::AccountId
+          - ':'
+          - function:csd-rc-outbound-trigger-cdk
+          - '-'
+          - Ref: Env          
+      StartingPosition: LATEST
+  DDBPlanningViewTableTrigger2:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 100
+      Enabled: True
+      EventSourceArn: !GetAtt CsdPlanningView.StreamArn
+      FunctionName:
+        Fn::Join:
+        - ''
+        - - arn:aws:lambda
+          - ':'
+          - Ref: AWS::Region
+          - ':'
+          - Ref: AWS::AccountId
+          - ':'
+          - function:csd-planning-view-generation-trigger-lambda-cdk
+          - '-'
+          - Ref: Env
+      StartingPosition: LATEST
+  CsdCmYardVolume:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      Tags:
+      - Key: Name
+        Value: 
+          Fn::Join:
+          - "-"
+          - - CSD-CM-YARD-VOLUME
+            - Ref: Env
+      - Key: Owner
+        Value: ocs
+      - Key: Application
+        Value: opsTool  
+      - Key: Environment
+        Value: 
+          Ref: Env  
+      - Key: Project 
+        Value:
+          Ref: ProjectName      
+      BillingMode: PAY_PER_REQUEST   
+      PointInTimeRecoverySpecification:       
+        PointInTimeRecoveryEnabled: 
+          Ref: PIT           
+      AttributeDefinitions:
+      - AttributeName: pkey
+        AttributeType: S       
+      KeySchema:
+      - AttributeName: pkey
+        KeyType: HASH
+      TableName:
+        Fn::Join:
+        - "-"
+        - - csd-cm-yard-volume
+          - Ref: Env
+  CsdTicketTypeGroups:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      Tags:
+      - Key: Name
+        Value: 
+          Fn::Join:
+          - "-"
+          - - CSD-TICKET-TYPE-GROUPS
+            - Ref: Env
+      - Key: Owner
+        Value: ocs
+      - Key: Application
+        Value: opsTool  
+      - Key: Environment
+        Value: 
+          Ref: Env  
+      - Key: Project 
+        Value:
+          Ref: ProjectName      
+      BillingMode: PAY_PER_REQUEST   
+      PointInTimeRecoverySpecification:       
+        PointInTimeRecoveryEnabled: 
+          Ref: PIT           
+      AttributeDefinitions:
+      - AttributeName: ticket_type_group_id
+        AttributeType: S
+      KeySchema:
+      - AttributeName: ticket_type_group_id
+        KeyType: HASH
+      TableName:
+        Fn::Join:
+        - "-"
+        - - csd-ticket-type-groups
+          - Ref: Env
+  CsdDownTime:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      Tags:
+      - Key: Name
+        Value: 
+          Fn::Join:
+          - "-"
+          - - CSD-DOWN-TIME
+            - Ref: Env
+      - Key: Owner
+        Value: ocs
+      - Key: Application
+        Value: opsTool 
+      - Key: Environment
+        Value: 
+          Ref: Env  
+      - Key: Project 
+        Value:
+          Ref: ProjectName       
+      BillingMode: PAY_PER_REQUEST   
+      PointInTimeRecoverySpecification:       
+        PointInTimeRecoveryEnabled: 
+          Ref: PIT           
+      AttributeDefinitions:
+      - AttributeName: pkey
+        AttributeType: S
+      - AttributeName: lob_id
+        AttributeType: S
+      KeySchema:
+      - AttributeName: pkey
+        KeyType: HASH
+      - AttributeName: lob_id
+        KeyType: RANGE
+      TableName:
+        Fn::Join:
+        - "-"
+        - - csd-down-time
+          - Ref: Env
+  CsdRoTicketTypeDetails:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      Tags:
+      - Key: Name
+        Value: 
+          Fn::Join:
+          - "-"
+          - - CSD-RO-TICKET-TYPE-DETAILS
+            - Ref: Env
+      - Key: Owner
+        Value: ocs
+      - Key: Application
+        Value: opsTool   
+      - Key: Environment
+        Value: 
+          Ref: Env  
+      - Key: Project 
+        Value:
+          Ref: ProjectName     
+      BillingMode: PAY_PER_REQUEST   
+      PointInTimeRecoverySpecification:       
+        PointInTimeRecoveryEnabled: 
+          Ref: PIT           
+      AttributeDefinitions:
+      - AttributeName: pkey
+        AttributeType: S
+      - AttributeName: ticket_type
+        AttributeType: S
+      KeySchema:
+      - AttributeName: pkey
+        KeyType: HASH
+      - AttributeName: ticket_type
+        KeyType: RANGE
+      TableName:
+        Fn::Join:
+        - "-"
+        - - csd-ro-ticket-type-details
+          - Ref: Env
+  CsdSiteTargets:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      Tags:
+      - Key: Name
+        Value: 
+          Fn::Join:
+          - "-"
+          - - CSD-SITE-TARGETS
+            - Ref: Env
+      - Key: Owner
+        Value: ocs
+      - Key: Application
+        Value: opsTool   
+      - Key: Environment
+        Value: 
+          Ref: Env  
+      - Key: Project 
+        Value:
+          Ref: ProjectName   
+      BillingMode: PAY_PER_REQUEST   
+      PointInTimeRecoverySpecification:       
+        PointInTimeRecoveryEnabled: 
+          Ref: PIT           
+      AttributeDefinitions:
+      - AttributeName: pkey
+        AttributeType: S
+      - AttributeName: lob_id
+        AttributeType: S        
+      KeySchema:
+      - AttributeName: pkey
+        KeyType: HASH
+      - AttributeName: lob_id
+        KeyType: RANGE 
+      TableName:
+        Fn::Join:
+        - "-"
+        - - csd-site-targets
+          - Ref: Env
+  CsdRsHomeVolume:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      Tags:
+      - Key: Name
+        Value: 
+          Fn::Join:
+          - "-"
+          - - CSD-RS-HOME-VOLUME
+            - Ref: Env
+      - Key: Owner
+        Value: ocs
+      - Key: Application
+        Value: opsTool     
+      - Key: Environment
+        Value: 
+          Ref: Env  
+      - Key: Project 
+        Value:
+          Ref: ProjectName    
+      BillingMode: PAY_PER_REQUEST   
+      PointInTimeRecoverySpecification:       
+        PointInTimeRecoveryEnabled: 
+          Ref: PIT           
+      AttributeDefinitions:
+      - AttributeName: pkey
+        AttributeType: S
+      KeySchema:
+      - AttributeName: pkey
+        KeyType: HASH    
+      TableName:
+        Fn::Join:
+        - "-"
+        - - csd-rs-home-volume
+          - Ref: Env            
+  CsdRoEfficiency:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      Tags:
+      - Key: Name
+        Value: 
+          Fn::Join:
+          - "-"
+          - - CSD-RO-EFFICIENCY
+            - Ref: Env
+      - Key: Owner
+        Value: ocs
+      - Key: Application
+        Value: opsTool    
+      - Key: Environment
+        Value: 
+          Ref: Env  
+      - Key: Project 
+        Value:
+          Ref: ProjectName     
+      BillingMode: PAY_PER_REQUEST   
+      PointInTimeRecoverySpecification:       
+        PointInTimeRecoveryEnabled: 
+          Ref: PIT            
+      AttributeDefinitions:
+      - AttributeName: pkey
+        AttributeType: S
+      KeySchema:
+      - AttributeName: pkey
+        KeyType: HASH  
+      TableName:
+        Fn::Join:
+        - "-"
+        - - csd-ro-efficiency
+          - Ref: Env
+  CsdCmoEfficiency:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      Tags:
+      - Key: Name
+        Value: 
+          Fn::Join:
+          - "-"
+          - - CSD-CM-EFFICIENCY
+            - Ref: Env
+      - Key: Owner
+        Value: ocs
+      - Key: Application
+        Value: opsTool  
+      - Key: Environment
+        Value: 
+          Ref: Env  
+      - Key: Project 
+        Value:
+          Ref: ProjectName   
+      BillingMode: PAY_PER_REQUEST   
+      PointInTimeRecoverySpecification:       
+        PointInTimeRecoveryEnabled: 
+          Ref: PIT               
+      AttributeDefinitions:
+      - AttributeName: pkey
+        AttributeType: S       
+      KeySchema:
+      - AttributeName: pkey
+        KeyType: HASH
+      TableName:
+        Fn::Join:
+        - "-"
+        - - csd-cm-efficiency
+          - Ref: Env
+  CsdRsEfficiency:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      Tags:
+      - Key: Name
+        Value: 
+          Fn::Join:
+          - "-"
+          - - CSD-RS-EFFICIENCY
+            - Ref: Env
+      - Key: Owner
+        Value: ocs
+      - Key: Application
+        Value: opsTool  
+      - Key: Environment
+        Value: 
+          Ref: Env  
+      - Key: Project 
+        Value:
+          Ref: ProjectName      
+      BillingMode: PAY_PER_REQUEST   
+      PointInTimeRecoverySpecification:       
+        PointInTimeRecoveryEnabled: 
+          Ref: PIT            
+      AttributeDefinitions:
+      - AttributeName: pkey
+        AttributeType: S        
+      KeySchema:
+      - AttributeName: pkey
+        KeyType: HASH  
+      TableName:
+        Fn::Join:
+        - "-"
+        - - csd-rs-efficiency
+          - Ref: Env
+  CsdRoHaulVolume:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      Tags:
+      - Key: Name
+        Value: 
+          Fn::Join:
+          - "-"
+          - - CSD-RO-HAUL-VOLUME
+            - Ref: Env
+      - Key: Owner
+        Value: ocs
+      - Key: Application
+        Value: opsTool  
+      - Key: Environment
+        Value: 
+          Ref: Env  
+      - Key: Project 
+        Value:
+          Ref: ProjectName   
+      BillingMode: PAY_PER_REQUEST   
+      PointInTimeRecoverySpecification:       
+        PointInTimeRecoveryEnabled: 
+          Ref: PIT               
+      AttributeDefinitions:
+      - AttributeName: pkey
+        AttributeType: S
+      - AttributeName: site_id
+        AttributeType: S        
+      KeySchema:
+      - AttributeName: pkey
+        KeyType: HASH 
+      GlobalSecondaryIndexes:
+        - IndexName: site_id-index
+          KeySchema:
+            - AttributeName: site_id
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL        
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES        
+      TableName:
+        Fn::Join:
+        - "-"
+        - - csd-ro-haul-volume
+          - Ref: Env   
+  DDBRoHaulVolumeTrigger:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 100  
+      Enabled: True
+      EventSourceArn: !GetAtt CsdRoHaulVolume.StreamArn
+      FunctionName: 
+        Fn::Join:
+        - ''
+        - - arn:aws:lambda
+          - ':'
+          - Ref: AWS::Region
+          - ':'
+          - Ref: AWS::AccountId
+          - ':'
+          - function:csd-site-availablity-trigger-integration-cdk
+          - '-'
+          - Ref: Env
+      StartingPosition: LATEST                    
+  CsdUserSettings:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      Tags:
+      - Key: Name
+        Value: 
+          Fn::Join:
+          - "-"
+          - - CSD-RO-HAUL-VOLUME
+            - Ref: Env
+      - Key: Owner
+        Value: ocs
+      - Key: Application
+        Value: opsTool  
+      - Key: Environment
+        Value: 
+          Ref: Env  
+      - Key: Project 
+        Value:
+          Ref: ProjectName    
+      BillingMode: PAY_PER_REQUEST   
+      PointInTimeRecoverySpecification:       
+        PointInTimeRecoveryEnabled: 
+          Ref: PIT    
+      AttributeDefinitions:
+      - AttributeName: email_id
+        AttributeType: S        
+      KeySchema:
+      - AttributeName: email_id
+        KeyType: HASH  
+      TableName:
+        Fn::Join:
+        - "-"
+        - - csd-user-settings
+          - Ref: Env
+  CsdDriverjobType:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      Tags:
+      - Key: Name
+        Value: 
+          Fn::Join:
+          - "-"
+          - - CSD-DRIVER-JOB-TYPE
+            - Ref: Env
+      - Key: Owner
+        Value: ocs
+      - Key: Application
+        Value: opsTool  
+      - Key: Environment
+        Value: 
+          Ref: Env  
+      - Key: Project 
+        Value:
+          Ref: ProjectName    
+      BillingMode: PAY_PER_REQUEST      
+      PointInTimeRecoverySpecification:       
+        PointInTimeRecoveryEnabled: 
+          Ref: PIT
+      AttributeDefinitions:
+      - AttributeName: unique_id
+        AttributeType: S       
+      KeySchema:
+      - AttributeName: unique_id
+        KeyType: HASH 
+      TableName:
+        Fn::Join:
+        - "-"
+        - - csd-driver-job-type
+          - Ref: Env
+  CsdPlanningViewTransaction:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      Tags:
+      - Key: Name
+        Value: 
+          Fn::Join:
+          - "-"
+          - - CSD-PLANNING-VIEW-TRANSACTION
+            - Ref: Env
+      - Key: Owner
+        Value: ocs
+      - Key: Application
+        Value: opsTool  
+      - Key: Environment
+        Value: 
+          Ref: Env  
+      - Key: Project 
+        Value:
+          Ref: ProjectName      
+      BillingMode: PAY_PER_REQUEST   
+      PointInTimeRecoverySpecification:       
+        PointInTimeRecoveryEnabled: 
+          Ref: PIT 
+      AttributeDefinitions:
+      - AttributeName: uuid
+        AttributeType: S
+      - AttributeName: transaction_id
+        AttributeType: S
+      KeySchema:
+      - AttributeName: uuid
+        KeyType: HASH
+      - AttributeName: transaction_id
+        KeyType: RANGE
+      TableName:
+        Fn::Join:
+        - "-"
+        - - csd-planning-view-transaction
+          - Ref: Env
+  CsdJobLastSuccess:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      Tags:
+      - Key: Name
+        Value: 
+          Fn::Join:
+          - "-"
+          - - CSD-JOB-LAST-SUCCESS-EXECUTION
+            - Ref: Env
+      - Key: Owner
+        Value: ocs
+      - Key: Application
+        Value: opsTool  
+      - Key: Environment
+        Value: 
+          Ref: Env  
+      - Key: Project 
+        Value:
+          Ref: ProjectName    
+      PointInTimeRecoverySpecification:       
+        PointInTimeRecoveryEnabled: 
+          Ref: PIT          
+      BillingMode: PAY_PER_REQUEST      
+      AttributeDefinitions:
+      - AttributeName: job_name
+        AttributeType: S  
+      - AttributeName: execution_date_time
+        AttributeType: S             
+      KeySchema:
+      - AttributeName: job_name
+        KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: execution_date_time-index
+          KeySchema:
+            - AttributeName: execution_date_time
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL          
+      TableName:
+        Fn::Join:
+        - "-"
+        - - csd-job-last-success-execution
+          - Ref: Env
+  CsdJobExecutionTracker:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      Tags:
+      - Key: Name
+        Value: 
+          Fn::Join:
+          - "-"
+          - - CSD-JOB-EXECUTION-TRACKER
+            - Ref: Env
+      - Key: Owner
+        Value: ocs
+      - Key: Application
+        Value: opsTool  
+      - Key: Environment
+        Value: 
+          Ref: Env  
+      - Key: Project 
+        Value:
+          Ref: ProjectName      
+      PointInTimeRecoverySpecification:       
+        PointInTimeRecoveryEnabled: 
+          Ref: PIT          
+      BillingMode: PAY_PER_REQUEST    
+      AttributeDefinitions:
+      - AttributeName: job_name
+        AttributeType: S
+      - AttributeName: execution_date_time
+        AttributeType: S          
+      KeySchema:
+      - AttributeName: job_name
+        KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: execution_date_time-index
+          KeySchema:
+            - AttributeName: execution_date_time
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL           
+      TableName:
+        Fn::Join:
+        - "-"
+        - - csd-job-execution-tracker
+          - Ref: Env         
+  CsdRouteOrderStat:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      Tags:
+      - Key: Name
+        Value: 
+          Fn::Join:
+          - "-"
+          - - CSD-ROUTE-ORDER-STAT
+            - Ref: Env
+      - Key: Owner
+        Value: ocs
+      - Key: Application
+        Value: opsTool  
+      - Key: Environment
+        Value: 
+          Ref: Env  
+      - Key: Project 
+        Value:
+          Ref: ProjectName  
+      PointInTimeRecoverySpecification:       
+        PointInTimeRecoveryEnabled: 
+          Ref: PIT
+      BillingMode: PAY_PER_REQUEST 
+      AttributeDefinitions:
+      - AttributeName: ROUTEORDER
+        AttributeType: S       
+      KeySchema:
+      - AttributeName: ROUTEORDER
+        KeyType: HASH
+      TableName:
+        Fn::Join:
+        - "-"
+        - - csd-routeorder-stat
+          - Ref: Env
+  CsdCustomerOrderStat:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      Tags:
+      - Key: Name
+        Value: 
+          Fn::Join:
+          - "-"
+          - - CSD-CUSTOMER-ORDER-STAT
+            - Ref: Env
+      - Key: Owner
+        Value: ocs
+      - Key: Application
+        Value: opsTool  
+      - Key: Environment
+        Value: 
+          Ref: Env  
+      - Key: Project 
+        Value:
+          Ref: ProjectName
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: 
+          Ref: PIT                
+      BillingMode: PAY_PER_REQUEST      
+      AttributeDefinitions:
+      - AttributeName: CUSTOMERORDER
+        AttributeType: S
+      KeySchema:
+      - AttributeName: CUSTOMERORDER
+        KeyType: HASH
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES        
+      TableName:
+        Fn::Join:
+        - "-"
+        - - csd-customerorder-stat
+          - Ref: Env 
+  CsdSiteAvailability:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      Tags:
+      - Key: Name
+        Value: 
+          Fn::Join:
+          - "-"
+          - - CSD-SITE-AVAILABILITY
+            - Ref: Env
+      - Key: Owner
+        Value: ocs
+      - Key: Application
+        Value: opsTool   
+      - Key: Environment
+        Value: 
+          Ref: Env  
+      - Key: Project 
+        Value:
+          Ref: ProjectName   
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: 
+          Ref: PIT                  
+      BillingMode: PAY_PER_REQUEST          
+      AttributeDefinitions:
+      - AttributeName: site_id
+        AttributeType: S
+      - AttributeName: plan_date
+        AttributeType: S        
+      KeySchema:
+      - AttributeName: site_id
+        KeyType: HASH
+      - AttributeName: plan_date
+        KeyType: RANGE 
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES        
+      TableName:
+        Fn::Join:
+        - "-"
+        - - csd-site-availability
+          - Ref: Env 
+  DDBSiteAvailability:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 100
+      Enabled: True
+      EventSourceArn: !GetAtt CsdSiteAvailability.StreamArn
+      FunctionName:
+        Fn::Join:
+        - ''
+        - - arn:aws:lambda
+          - ':'
+          - Ref: AWS::Region
+          - ':'
+          - Ref: AWS::AccountId
+          - ':'
+          - function:csd-site-availability-trigger-sns-integration-cdk
+          - '-'
+          - Ref: Env
+      StartingPosition: LATEST          
+  CsdRouteOrderStats:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      Tags:
+      - Key: Name
+        Value: 
+          Fn::Join:
+          - "-"
+          - - CSD-ROUTE-ORDER-STATS
+            - Ref: Env
+      - Key: Owner
+        Value: ocs
+      - Key: Application
+        Value: opsTool  
+      - Key: Environment
+        Value: 
+          Ref: Env  
+      - Key: Project 
+        Value:
+          Ref: ProjectName
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: 
+          Ref: PIT                
+      BillingMode: PAY_PER_REQUEST      
+      AttributeDefinitions:
+      - AttributeName: pkey
+        AttributeType: S
+      KeySchema:
+      - AttributeName: pkey
+        KeyType: HASH
+      StreamSpecification:
+       StreamViewType: NEW_AND_OLD_IMAGES       
+      TableName:
+        Fn::Join:
+        - "-"
+        - - csd-route-order-stats
+          - Ref: Env 
+  DDBRouteOrderStats:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 100  
+      Enabled: True
+      EventSourceArn: !GetAtt CsdRouteOrderStats.StreamArn
+      FunctionName: 
+        Fn::Join:
+        - ''
+        - - arn:aws:lambda
+          - ':'
+          - Ref: AWS::Region
+          - ':'
+          - Ref: AWS::AccountId
+          - ':'
+          - function:csd-route-order-stats-publisher-trigger-cdk
+          - '-'
+          - Ref: Env
+      StartingPosition: LATEST            
+  CsdDriverSpCustomer:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      Tags:
+      - Key: Name
+        Value: 
+          Fn::Join:
+          - "-"
+          - - CSD-DRIVER-SP-CUSTOMER
+            - Ref: Env
+      - Key: Owner
+        Value: ocs
+      - Key: Application
+        Value: opsTool  
+      - Key: Environment
+        Value: 
+          Ref: Env  
+      - Key: Project 
+        Value:
+          Ref: ProjectName      
+      BillingMode: PAY_PER_REQUEST   
+      PointInTimeRecoverySpecification:       
+        PointInTimeRecoveryEnabled: 
+          Ref: PIT 
+      AttributeDefinitions:
+      - AttributeName: driver_id
+        AttributeType: S
+      - AttributeName: customer_unique_id
+        AttributeType: S
+      KeySchema:
+      - AttributeName: driver_id
+        KeyType: HASH
+      - AttributeName: customer_unique_id
+        KeyType: RANGE
+      TableName:
+        Fn::Join:
+        - "-"
+        - - csd-driver-sp-customer
+          - Ref: Env 
+  CsdVehicleSpCustomer:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      Tags:
+      - Key: Name
+        Value: 
+          Fn::Join:
+          - "-"
+          - - CSD-VEHICLE-SP-CUSTOMER
+            - Ref: Env
+      - Key: Owner
+        Value: ocs
+      - Key: Application
+        Value: opsTool  
+      - Key: Environment
+        Value: 
+          Ref: Env  
+      - Key: Project 
+        Value:
+          Ref: ProjectName      
+      BillingMode: PAY_PER_REQUEST   
+      PointInTimeRecoverySpecification:       
+        PointInTimeRecoveryEnabled: 
+          Ref: PIT 
+      AttributeDefinitions:
+      - AttributeName: vehicle_id
+        AttributeType: S
+      - AttributeName: customer_unique_id
+        AttributeType: S
+      KeySchema:
+      - AttributeName: vehicle_id
+        KeyType: HASH
+      - AttributeName: customer_unique_id
+        KeyType: RANGE
+      TableName:
+        Fn::Join:
+        - "-"
+        - - csd-vehicle-sp-customer
+          - Ref: Env
+  CsdSpecialCustomer:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      Tags:
+      - Key: Name
+        Value:
+          Fn::Join:
+          - "-"
+          - - CSD-SPECIAL-CUSTOMER
+            - Ref: Env
+      - Key: Owner
+        Value: ocs
+      - Key: Application
+        Value: opsTool
+      - Key: Environment
+        Value:
+          Ref: Env
+      - Key: Project
+        Value:
+          Ref: ProjectName
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled:
+          Ref: PIT
+      AttributeDefinitions:
+      - AttributeName: site_id
+        AttributeType: S
+      - AttributeName: unique_id
+        AttributeType: S
+      KeySchema:
+      - AttributeName: site_id
+        KeyType: HASH
+      - AttributeName: unique_id
+        KeyType: RANGE
+      TableName:
+        Fn::Join:
+        - "-"
+        - - csd-special-customer
+          - Ref: Env
+  CsdDriverTimeEntrySummary:
+    Type: AWS::DynamoDB::Table
+    Condition: CreateDriverTimeEntrySummary
+    Properties:
+      Tags:
+      - Key: Name
+        Value: 
+          Fn::Join:
+          - "-"
+          - - CSD-DRIVER-TIME-ENTRY-SUMMARY-PROD-TO
+            - Ref: Env
+      - Key: Owner
+        Value: ocs
+      - Key: Application
+        Value: opsTool   
+      - Key: Environment
+        Value: 
+          Ref: Env  
+      - Key: Project 
+        Value:
+          Ref: ProjectName   
+      BillingMode: PAY_PER_REQUEST   
+      PointInTimeRecoverySpecification:       
+        PointInTimeRecoveryEnabled: 
+          Ref: PIT           
+      AttributeDefinitions:
+      - AttributeName: driver_id
+        AttributeType: S
+      - AttributeName: time_entry_date
+        AttributeType: S        
+      KeySchema:
+      - AttributeName: driver_id
+        KeyType: HASH
+      - AttributeName: time_entry_date
+        KeyType: RANGE 
+      TableName:
+        Fn::Join:
+        - "-"
+        - - csd-driver-time-entry-summary-prod-to
+          - Ref: Env  
+  CsdDriverSummary:
+    Type: AWS::DynamoDB::Table
+    Condition: CreateDriverSummary
+    Properties:
+      Tags:
+      - Key: Name
+        Value: 
+          Fn::Join:
+          - "-"
+          - - CSD-DRIVER-SUMMARY-PROD-TO
+            - Ref: Env
+      - Key: Owner
+        Value: ocs
+      - Key: Application
+        Value: opsTool   
+      - Key: Environment
+        Value: 
+          Ref: Env  
+      - Key: Project 
+        Value:
+          Ref: ProjectName   
+      BillingMode: PAY_PER_REQUEST   
+      PointInTimeRecoverySpecification:       
+        PointInTimeRecoveryEnabled: 
+          Ref: PIT           
+      AttributeDefinitions:
+      - AttributeName: driver_id
+        AttributeType: S       
+      KeySchema:
+      - AttributeName: driver_id
+        KeyType: HASH
+      TableName:
+        Fn::Join:
+        - "-"
+        - - csd-driver-summary-prod-to
+          - Ref: Env  
+  CsdPlanningViewSummary:
+    Type: AWS::DynamoDB::Table
+    Condition: CreatePlanningViewSummary
+    Properties:
+      Tags:
+      - Key: Name
+        Value: 
+          Fn::Join:
+          - "-"
+          - - CSD-PLANNING-VIEW-SUMMARY-PROD-TO
+            - Ref: Env
+      - Key: Owner
+        Value: ocs
+      - Key: Application
+        Value: opsTool   
+      - Key: Environment
+        Value: 
+          Ref: Env  
+      - Key: Project 
+        Value:
+          Ref: ProjectName   
+      BillingMode: PAY_PER_REQUEST   
+      PointInTimeRecoverySpecification:       
+        PointInTimeRecoveryEnabled: 
+          Ref: PIT           
+      AttributeDefinitions:
+      - AttributeName: pkey
+        AttributeType: S
+      - AttributeName: uuid
+        AttributeType: S        
+      KeySchema:
+      - AttributeName: pkey
+        KeyType: HASH
+      - AttributeName: uuid
+        KeyType: RANGE 
+      TableName:
+        Fn::Join:
+        - "-"
+        - - csd-planning-view-summary-prod-to
+          - Ref: Env
+  CsdCustomerorderlog:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      Tags:
+      - Key: Name
+        Value: 
+          Fn::Join:
+          - "-"
+          - - CSD-CUSTOMERORDER-LOG
+      - Key: Owner
+        Value: ocs
+      - Key: Application
+        Value: opsTool   
+      - Key: Environment
+        Value: 
+          Ref: Env  
+      - Key: Project 
+        Value:
+          Ref: ProjectName   
+      BillingMode: PAY_PER_REQUEST   
+      PointInTimeRecoverySpecification:       
+        PointInTimeRecoveryEnabled: 
+          Ref: PIT           
+      AttributeDefinitions:
+      - AttributeName: CUSTOMERORDER
+        AttributeType: S
+      - AttributeName: CHANGE_SEQUENCE
+        AttributeType: N 
+      - AttributeName: SiteId
+        AttributeType: S
+      - AttributeName: TicketNumber
+        AttributeType: S               
+      KeySchema:
+      - AttributeName: CUSTOMERORDER
+        KeyType: HASH
+      - AttributeName: CHANGE_SEQUENCE
+        KeyType: RANGE 
+      GlobalSecondaryIndexes:
+        - IndexName: SiteId-index
+          KeySchema:
+            - AttributeName: SiteId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL  
+        - IndexName: TicketNumber-index
+          KeySchema:
+            - AttributeName: TicketNumber
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL        
+      TableName:
+        Fn::Join:
+        - "-"
+        - - csd-customerorder-log
+          - Ref: Env
+  CsdSiteSettings:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      Tags:
+      - Key: Name
+        Value:
+          Fn::Join:
+          - "-"
+          - - CSD-SITE-SETTINGS
+            - Ref: Env
+      - Key: Owner
+        Value: ocs
+      - Key: Application
+        Value: opsTool
+      - Key: Environment
+        Value:
+          Ref: Env
+      - Key: Project
+        Value:
+          Ref: ProjectName
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled:
+          Ref: PIT
+      AttributeDefinitions:
+      - AttributeName: site_id
+        AttributeType: S
+      KeySchema:
+      - AttributeName: site_id
+        KeyType: HASH
+      TableName:
+        Fn::Join:
+        - "-"
+        - - csd-site-settings
+          - Ref: Env
+Outputs:
+  CsdCmYardVolumeTableName:
+    Description: Table name
+    Value:
+      Ref: CsdCmYardVolume
+    Export:
+      Name:
+        Fn::Sub: "CsdDynamoDb-CsdCmYardVolume-${Env}"
+  CsdTicketTypeGroupsTableName:
+    Description: Table name
+    Value:
+      Ref: CsdTicketTypeGroups
+    Export:
+      Name:
+        Fn::Sub: "CsdDynamoDb-CsdTicketTypeGroups-${Env}"
+  CsdDownTimeTableName:
+    Description: Table name
+    Value:
+      Ref: CsdDownTime
+    Export:
+      Name:
+        Fn::Sub: "CsdDynamoDb-CsdDownTime-${Env}"
+  CsdRoTicketTypeDetailsTableName:
+    Description: Table name
+    Value:
+      Ref: CsdRoTicketTypeDetails
+    Export:
+      Name:
+        Fn::Sub: "CsdDynamoDb-CsdRoTicketTypeDetails-${Env}"   
+  CsdSiteTargetsTableName:
+    Description: Table name
+    Value:
+      Ref: CsdSiteTargets
+    Export:
+      Name:
+        Fn::Sub: "CsdDynamoDb-CsdSiteTargets-${Env}" 
+  CsdRsHomeVolumeTableName:
+    Description: Table name
+    Value:
+      Ref: CsdRsHomeVolume
+    Export:
+      Name:
+        Fn::Sub: "CsdDynamoDb-CsdRsHomeVolume-${Env}" 
+  CsdRoEfficiencyTableName:
+    Description: Table Name
+    Value:
+      Ref: CsdRoEfficiency
+    Export:
+      Name:
+        Fn::Sub: "CsdDynamoDb-CsdRoEfficiency-${Env}"
+  CsdCmoEfficiencyTableName:
+    Description: Table Name
+    Value:
+      Ref: CsdCmoEfficiency
+    Export:
+      Name:
+        Fn::Sub: "CsdDynamoDb-CsdCmoEfficiency-${Env}"
+  CsdRsEfficiencyTableName:
+    Description: Table Name
+    Value:
+      Ref: CsdRsEfficiency
+    Export:
+      Name:
+        Fn::Sub: "CsdDynamoDb-CsdRsEfficiency-${Env}"
+  CsdDriverTableName:
+    Description: Table name
+    Value:
+      Ref: CsdDriver
+    Export:
+      Name:
+        Fn::Sub: "CsdDynamoDb-CsdDriver-${Env}"
+  CsdVehicleTableName:
+    Description: Table name
+    Value:
+      Ref: CsdVehicle
+    Export:
+      Name:
+        Fn::Sub: "CsdDynamoDb-CsdVehicleTableName-${Env}"
+  CsdSiteTableName:
+    Description: Table name
+    Value:
+      Ref: CsdSite
+    Export:
+      Name:
+        Fn::Sub: "CsdDynamoDb-CsdSiteTableName-${Env}"
+  CsdRouteTableName:
+    Description: Table name
+    Value:
+      Ref: CsdRoute
+    Export:
+      Name:
+        Fn::Sub: "CsdDynamoDb-CsdRouteTableName-${Env}"   
+  CsdLobTableName:
+    Description: Table name
+    Value:
+      Ref: CsdLob
+    Export:
+      Name:
+        Fn::Sub: "CsdDynamoDb-CsdLobTableName-${Env}" 
+  CsdEmployeeTableName:
+    Description: Table name
+    Value:
+      Ref: CsdEmployee
+    Export:
+      Name:
+        Fn::Sub: "CsdDynamoDb-CsdEmployeeTableName-${Env}" 
+  CsdUserRolesTableName:
+    Description: Table Name
+    Value:
+      Ref: CsdUserRoles
+    Export:
+      Name:
+        Fn::Sub: "CsdDynamoDb-CsdUserRolesTableName-${Env}"
+  CsdDriverTimeTableName:
+    Description: Table Name
+    Value:
+      Ref: CsdDriverTimeEntry
+    Export:
+      Name:
+        Fn::Sub: "CsdDynamoDb-CsdDriverTimeTableName-${Env}"
+  CsdPlanningViewTableName:
+    Description: Table Name
+    Value:
+      Ref: CsdPlanningView
+    Export:
+      Name:
+        Fn::Sub: "CsdDynamoDb-CsdPlanningViewTableName-${Env}"
+  CsdUserSearchTableName:
+    Description: Table Name
+    Value:
+      Ref: CsdUserSearch
+    Export:
+      Name:
+        Fn::Sub: "CsdDynamoDb-CsdUserSearchTableName-${Env}" 
