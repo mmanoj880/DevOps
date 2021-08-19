@@ -5,6 +5,14 @@ jobs:
     name: exe app
     runs-on: ubuntu-latest
     steps:
+      - name: download artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: ocs-rc
+      - name: zip content
+        uses: thedoctor0/zip-release@main
+        with:
+          filename: site.zip
       - name: create release
         id: create-new-release
         uses: actions/create-release@v1
