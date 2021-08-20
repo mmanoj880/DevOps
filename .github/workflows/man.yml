@@ -29,8 +29,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: site.zip
-          asset_name: site-v${{ github.run_number }}.zip
+          asset_path: 202107.091313.1-OCS-ResourceCenter-win32-x64.exe
+          asset_name: ocs-rc-v${{ github.run_number }}.zip
           asset_content_type: application/zip
         
 
