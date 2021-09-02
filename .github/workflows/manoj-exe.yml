@@ -1,7 +1,8 @@
-  on:
-   push:
+  
+on:
+  push:
     tags:
-    - '*' 
+      - '*' 
 
 name: Create and Upload Release Build
 
